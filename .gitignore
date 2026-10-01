@@ -1,0 +1,15 @@
+*.iml
+.gradle
+/local.properties
+local.properties
+/.idea
+.DS_Store
+/build
+/app/build
+/captures
+.externalNativeBuild
+.cxx
+node_modules/
+
+# Session transcripts never go into this repository
+docs/session-archive/

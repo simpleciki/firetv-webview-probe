@@ -1,0 +1,40 @@
+/* 10-foot layout: sized in vw/vh (a 1080p Fire TV can report only ~960 CSS px of width),
+   with a 5% safe area for TV overscan. */
+:root { --bg: #11161c; --fg: #f2f4f6; --dim: #9aa5b1; --accent: #f5b700; --ok: #4cc38a; --bad: #ef6461; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { position: absolute; inset: 5vh 5vw; display: flex; flex-direction: column; gap: 2.2vh; }
+
+h1 { font-size: 3.4vw; margin: 0; }
+h2 { font-size: 2.4vw; margin: 0; color: var(--accent); }
+p, li, td, th { font-size: 1.7vw; line-height: 1.35; }
+.dim { color: var(--dim); }
+.hint { font-size: 1.5vw; color: var(--dim); margin-top: auto; white-space: pre; }
+.prompt { font-size: 3vw; font-weight: 600; margin: 1vh 0; }
+.progress { font-size: 1.5vw; color: var(--dim); }
+kbd { display: inline-block; min-width: 2.2vw; padding: 0 .5vw; border: 2px solid var(--dim);
+  border-radius: .5vw; text-align: center; font-family: inherit; }
+
+.log { font-family: ui-monospace, Consolas, monospace; font-size: 1.5vw; color: var(--dim);
+  min-height: 8vh; white-space: pre-wrap; }
+.got { color: var(--ok); }
+.miss { color: var(--bad); }
+
+table { border-collapse: collapse; width: 100%; }
+td, th { text-align: left; padding: .4vh 1vw .4vh 0; vertical-align: top; }
+th { color: var(--dim); font-weight: 500; }
+
+.results { display: flex; gap: 3vw; min-height: 0; flex: 1; }
+.results .table { flex: 1; overflow: hidden; }
+.results td, .results th { font-size: 1.3vw; }
+.qr { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 1vh; }
+.qr svg { width: 30vh; height: 30vh; background: #fff; }
+
+/* Video steps. The variants are the point of the test: do not "fix" them. */
+.stage { display: flex; gap: 3vw; align-items: center; }
+.stage video { width: 40vw; height: 22.5vw; background: #000; }
+.stage video.rounded { border-radius: 24px; }
+@keyframes probe-fade { from { opacity: 0; } to { opacity: 1; } }
+body.fade-held { animation: probe-fade .35s both; }        /* stays applied after it finishes */
+body.fade-ending { animation: probe-fade .35s backwards; } /* ends; the page returns to normal */

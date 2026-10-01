@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The only difference between the two builds. Amazon's Media Session guide
+     (developer.amazon.com/docs/fire-tv/mediasession-api-integration.html, updated 2026-06-05)
+     says an app needs this permission, before Fire OS 14, for Alexa voice commands to reach
+     its media session. The other build leaves it out on purpose. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="com.amazon.permission.media.session.voicecommandcontrol" />
+</manifest>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 16:9 banner for Android TV launchers (Fire TV's home row uses the square icon instead). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp" android:height="180dp"
+    android:viewportWidth="320" android:viewportHeight="180">
+    <path android:fillColor="#1F2933" android:pathData="M0,0h320v180h-320z" />
+    <path android:fillColor="#F5B700" android:pathData="M160,74m-30,0a30,30 0 1 1 60,0a30,30 0 1 1 -60,0" />
+    <path android:fillColor="#1F2933" android:pathData="M160,74m-13,0a13,13 0 1 1 26,0a13,13 0 1 1 -26,0" />
+    <path android:fillColor="#F5B700" android:pathData="M154,100h12v40h-12z" />
+</vector>

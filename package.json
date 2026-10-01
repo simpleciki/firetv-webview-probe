@@ -1,0 +1,11 @@
+{
+  "name": "firetv-webview-probe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Find out what a Fire TV actually delivers to a web page in a WebView app: remote keys, Alexa voice commands, and which video styles stay visible.",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/probe.test.js",
+    "tv": "node scripts/tv.js"
+  }
+}

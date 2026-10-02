@@ -15,11 +15,11 @@
       expect: ['menu'], timeoutMs: 10000 },
     // Voice: the page tells the media session it is playing or paused before each phrase, so the
     // same phrase can be tried in both states ("pause" while already paused is the telling one).
-    { id: 'voicePausePlaying', kind: 'voice', title: 'Voice: pause (while playing)', phrase: 'Alexa, pause', state: 'playing', timeoutMs: 12000 },
-    { id: 'voicePausePaused', kind: 'voice', title: 'Voice: pause (already paused)', phrase: 'Alexa, pause', state: 'paused', timeoutMs: 12000 },
-    { id: 'voicePlay', kind: 'voice', title: 'Voice: play', phrase: 'Alexa, play', state: 'paused', timeoutMs: 12000 },
-    { id: 'voiceRewind', kind: 'voice', title: 'Voice: rewind', phrase: 'Alexa, rewind', state: 'playing', timeoutMs: 12000 },
-    { id: 'voiceFastForward', kind: 'voice', title: 'Voice: fast forward', phrase: 'Alexa, fast forward', state: 'playing', timeoutMs: 12000 },
+    { id: 'voicePausePlaying', kind: 'voice', title: 'Voice: pause (while playing)', phrase: 'Alexa, pause', state: 'playing', timeoutMs: 30000 },
+    { id: 'voicePausePaused', kind: 'voice', title: 'Voice: pause (already paused)', phrase: 'Alexa, pause', state: 'paused', timeoutMs: 30000 },
+    { id: 'voicePlay', kind: 'voice', title: 'Voice: play', phrase: 'Alexa, play', state: 'paused', timeoutMs: 30000 },
+    { id: 'voiceRewind', kind: 'voice', title: 'Voice: rewind', phrase: 'Alexa, rewind', state: 'playing', timeoutMs: 30000 },
+    { id: 'voiceFastForward', kind: 'voice', title: 'Voice: fast forward', phrase: 'Alexa, fast forward', state: 'playing', timeoutMs: 30000 },
     // Video: the same clip, styled four ways. Whether it is visible only a person can say (the
     // video element reports "playing" either way), so the step asks, and also records what the
     // element itself reports.
@@ -66,12 +66,20 @@
   function summariseVoice(observations) {
     return observations.map(voiceToken).filter(Boolean);
   }
+  // Does this observation mean Alexa has answered, so the step may wrap up? Lifecycle does not:
+  // holding the microphone button opens the voice overlay, which pauses the app before a word is
+  // said (Fire OS 8.1.8.2, 2026-10-01: the step ended mid-sentence because of this).
+  function endsVoiceWait(o) {
+    const t = voiceToken(o);
+    return !!t && !t.startsWith('L:');
+  }
 
   // What a voice result means, in words, for the on-screen table. Only says what the tokens show.
   function describeVoice(tokens) {
     const skipped = tokens.includes('skipped');
     tokens = tokens.filter((x) => x !== 'skipped');
     if (tokens.length === 0) return skipped ? 'Skipped before anything arrived.' : 'Nothing reached the app.';
+    if (tokens.every((t) => t.startsWith('L:'))) return 'Nothing from Alexa reached the app; it was only paused and resumed by the voice overlay.' + (skipped ? ' (Skipped.)' : '');
     const parts = [];
     if (tokens.some((t) => t.startsWith('s:'))) parts.push('media-session callback');
     if (tokens.some((t) => /^k\d+v$/.test(t))) parts.push('key event from a virtual device');
@@ -93,6 +101,15 @@
   }
 
   // The whole report as a compact JSON string (fits a QR code a phone can read off a TV).
+  // The report is plain text in a QR code. Phone cameras open anything that looks like a link, so
+  // nothing link-shaped goes in (2026-10-01: a phone opened the WebView's own https origin and
+  // showed "can't reach this page"). Origin becomes a short code; the WebView keeps only its version.
+  function originCode(origin) {
+    if (/^https:\/\/appassets\.androidplatform\.net$/.test(origin || '')) return 'appassets';
+    if (!origin || origin === 'null' || origin.startsWith('file:')) return 'file';
+    return 'other';
+  }
+  function webviewVersion(w) { return (w || '').replace(/^\S+\s+/, ''); }
   function buildReport(env, results) {
     const r = {};
     for (const s of STEPS) if (results[s.id] !== undefined) r[s.id] = results[s.id];
@@ -101,15 +118,15 @@
       p: 'firetv-webview-probe',
       dev: env.device ? {
         m: env.device.model, f: env.device.fireOs, a: env.device.android, s: env.device.sdk,
-        w: env.device.webview, px: env.device.displayPx, vp: env.device.voicePermission,
+        w: webviewVersion(env.device.webview), px: env.device.displayPx, vp: env.device.voicePermission,
       } : null,
       view: { w: env.innerWidth, h: env.innerHeight, dpr: env.devicePixelRatio },
-      origin: env.origin,
+      o: originCode(env.origin),
       r,
     });
   }
 
-  const api = { STEPS, DOOR, summariseKeys, voiceToken, summariseVoice, describeVoice, summariseVideo, buildReport };
+  const api = { STEPS, DOOR, summariseKeys, voiceToken, summariseVoice, endsVoiceWait, describeVoice, summariseVideo, buildReport };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ProbeCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

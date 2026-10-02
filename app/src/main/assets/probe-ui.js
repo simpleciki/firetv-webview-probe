@@ -2,7 +2,7 @@
 // results table and a QR code of the report. All judgement lives in probe-core.js.
 (function () {
   'use strict';
-  const { STEPS, summariseKeys, summariseVoice, describeVoice, summariseVideo, buildReport } = window.ProbeCore;
+  const { STEPS, summariseKeys, summariseVoice, endsVoiceWait, describeVoice, summariseVideo, buildReport } = window.ProbeCore;
   const RA = window.RemoteActions;
   const native = window.ProbeNative || null; // absent when the page is opened in a desktop browser
   const screen = document.getElementById('screen');
@@ -17,7 +17,11 @@
 
   // ---- tiny DOM helpers (textContent only: device strings are never parsed as HTML) ----
   function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
-  function show(...nodes) { screen.replaceChildren(...nodes); }
+  // A Back press reaches the page through two doors; the second copy must not skip the next step too
+  // (4K Plus, 2026-10-01: twelve Backs ran past the results screen and closed the app).
+  let shownAt = 0;
+  function show(...nodes) { screen.replaceChildren(...nodes); shownAt = performance.now(); }
+  function settled() { return performance.now() - shownAt >= STEP_GUARD_MS; }
   function hint(text) { return el('p', 'hint', text); }
 
   // ---- environment ----
@@ -46,6 +50,13 @@
 
   // ---- start screen ----
   let env = readEnv();
+  // At first paint the page can still measure 0×0 (seen on Fire OS 8.1.8.2): fill the row in once layout settles.
+  function displayText(d) { return `${d.displayPx} px · page sees ${env.innerWidth}×${env.innerHeight} CSS px · devicePixelRatio ${env.devicePixelRatio}`; }
+  let displayCell = null;
+  window.addEventListener('resize', () => {
+    env = readEnv();
+    if (displayCell && displayCell.isConnected && env.device) displayCell.textContent = displayText(env.device);
+  });
   function startScreen() {
     onRaw = null;
     const d = env.device;
@@ -53,17 +64,18 @@
       ['Device', `${d.manufacturer} ${d.model} (${d.device})`],
       ['System', `${d.fireOs || 'Android ' + d.android} · API ${d.sdk}`],
       ['WebView', d.webview || 'unknown'],
-      ['Display', `${d.displayPx} px · page sees ${env.innerWidth}×${env.innerHeight} CSS px · devicePixelRatio ${env.devicePixelRatio}`],
+      ['Display', displayText(d)],
       ['Page origin', env.origin],
       ['Voice permission', d.voicePermission ? 'declared in this build' : 'not declared in this build'],
     ] : [['Shell', 'Not running inside the probe app: only DOM keys can be recorded.']];
     const t = el('table');
-    for (const [k, v] of rows) { const tr = el('tr'); tr.append(el('th', null, k), el('td', null, v)); t.append(tr); }
+    displayCell = null;
+    for (const [k, v] of rows) { const tr = el('tr'); const td = el('td', null, v); if (k === 'Display') displayCell = td; tr.append(el('th', null, k), td); t.append(tr); }
     show(el('h1', null, 'Fire TV WebView Probe'),
       el('p', 'dim', 'Finds out what this device actually delivers to a web page in a WebView app: remote keys, Alexa voice commands, and which video styles stay visible. About three minutes.'),
       t,
       hint('OK  start      Back  exit'));
-    onNav = (a) => { if (a === 'select') run(); else if (a === 'back' && native) native.exit(); };
+    onNav = (a) => { if (a === 'select') run(); else if (a === 'back' && native && settled()) native.exit(); };
   }
 
   // ---- step runner ----
@@ -98,7 +110,7 @@
       }
       onNav = null;
       onRaw = (o) => {
-        if (o.kind === 'back') { finish(true); return; }
+        if (o.kind === 'back') { if (settled()) finish(true); return; }
         if (performance.now() - started < STEP_GUARD_MS) return;
         const a = o.kind === 'dom' ? { action: o.action, source: 'dom' } : RA.fromNative(o);
         if (!a) return;
@@ -130,14 +142,14 @@
       }
       onNav = null;
       onRaw = (o) => {
-        if (o.kind === 'back') { finish(true); return; }
+        if (o.kind === 'back') { if (settled()) finish(true); return; }
         // Back is how a person skips this step, not something Alexa sent.
         if (o.kind === 'key' && o.code === 4) return;
         if (performance.now() - started < STEP_GUARD_MS) return;
         obs.push(o);
         const tokens = summariseVoice(obs);
         log.textContent = tokens.join('  ') + '\n' + describeVoice(tokens);
-        if (!settle) settle = setTimeout(finish, VOICE_SETTLE_MS);
+        if (!settle && endsVoiceWait(o)) settle = setTimeout(finish, VOICE_SETTLE_MS);
       };
     });
   }
@@ -161,10 +173,10 @@
         measured = { paused: v.paused, readyState: v.readyState, advancedS: Math.max(0, v.currentTime - t0) };
         ask.textContent = 'Can you see moving colour bars and a running clock?   →  yes    ←  no';
         onNav = (a) => {
-          if (a === 'right') finish('seen'); else if (a === 'left') finish('not-seen'); else if (a === 'back') finish('skipped');
+          if (a === 'right') finish('seen'); else if (a === 'left') finish('not-seen'); else if (a === 'back' && settled()) finish('skipped');
         };
       }, VIDEO_CHECK_MS);
-      onNav = (a) => { if (a === 'back') finish('skipped'); };
+      onNav = (a) => { if (a === 'back' && settled()) finish('skipped'); };
       function finish(answer) {
         onNav = null;
         v.pause(); v.removeAttribute('src'); v.load();
@@ -199,7 +211,7 @@
     show(el('h1', null, 'What this device delivered'),
       el('p', 'dim', 'Doors: d = DOM keydown · k = activity key event (v = virtual device) · m = media-button intent · s = media-session callback · L = app paused/resumed'),
       box, hint('OK  run again      Back  exit'));
-    onNav = (a) => { if (a === 'select') run(); else if (a === 'back' && native) native.exit(); };
+    onNav = (a) => { if (a === 'select') run(); else if (a === 'back' && native && settled()) native.exit(); };
   }
 
   startScreen();

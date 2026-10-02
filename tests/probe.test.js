@@ -117,7 +117,7 @@ test('"skipped" and "nothing arrived" never read the same', () => {
   assert.equal(Core.describeVoice([]), 'Nothing reached the app.');
   assert.match(Core.describeVoice(['k85v', 'skipped']), /key event from a virtual device.*\(Skipped\.\)/);
   const ui = read('app', 'src', 'main', 'assets', 'probe-ui.js');
-  assert.match(ui, /if \(o\.kind === 'back'\) \{ finish\(true\); return; \}/);
+  assert.match(ui, /if \(o\.kind === 'back'\) \{ if \(settled\(\)\) finish\(true\); return; \}/);
   assert.match(ui, /if \(skipped === true\) r\.skipped = 1;/);
   assert.match(ui, /if \(skipped === true\) r\.push\('skipped'\);/);
   assert.match(ui, /r\.skipped \? ' \(skipped\)' : ''/);
@@ -173,4 +173,43 @@ test('nothing from any other product is in this repository', () => {
     if (p === __filename) continue;
     assert.doesNotMatch(fs.readFileSync(p, 'utf8'), banned, path.relative(ROOT, p));
   }
+});
+
+test('a voice step waits through the overlay: lifecycle alone never ends it, Alexa evidence does', () => {
+  assert.equal(Core.endsVoiceWait({ kind: 'lifecycle', event: 'onPause' }), false);
+  assert.equal(Core.endsVoiceWait({ kind: 'lifecycle', event: 'onResume' }), false);
+  assert.equal(Core.endsVoiceWait({ kind: 'key', code: 85, deviceId: -1 }), true);
+  assert.equal(Core.endsVoiceWait({ kind: 'session', callback: 'onPause' }), true, 'the session callback named onPause is Alexa, not lifecycle');
+  assert.equal(Core.endsVoiceWait({ kind: 'state' }), false);
+  for (const s of Core.STEPS.filter((x) => x.kind === 'voice')) assert.ok(s.timeoutMs >= 30000, s.id + ' leaves time to speak');
+});
+
+test('the voice step only starts its wrap-up timer on Alexa evidence', () => {
+  assert.match(read('app', 'src', 'main', 'assets', 'probe-ui.js'), /if \(!settle && endsVoiceWait\(o\)\) settle = setTimeout\(finish, VOICE_SETTLE_MS\)/);
+});
+
+test('a voice step that only saw the overlay says so in words, not "Arrived as: ."', () => {
+  const d = Core.describeVoice(['L:pause', 'L:resume']);
+  assert.match(d, /Nothing from Alexa reached the app/);
+  assert.doesNotMatch(d, /Arrived as: \./);
+});
+
+test('every Back handler waits until the screen has settled, so one press skips one step', () => {
+  const ui = read('app', 'src', 'main', 'assets', 'probe-ui.js');
+  assert.match(ui, /function show\(\.\.\.nodes\) \{ screen\.replaceChildren\(\.\.\.nodes\); shownAt = performance\.now\(\); \}/);
+  const backSites = ui.match(/(kind === 'back'|a === 'back')[^;\n]*/g);
+  assert.ok(backSites.length >= 6, 'found ' + backSites.length + ' Back handlers');
+  for (const site of backSites) assert.match(site, /settled\(\)/, 'unguarded Back: ' + site);
+});
+
+test('the QR report holds nothing a phone camera would open as a link', () => {
+  const env = { device: { model: 'AFTMA08C15', fireOs: 'Fire OS 8.1.8.2 (RS8182/3811)', android: '11', sdk: 30,
+    webview: 'com.amazon.webview.chromium 148.amazon-webview-v148-7778-tv.7778.258.6', displayPx: '1920x1080', voicePermission: true },
+    innerWidth: 960, innerHeight: 540, devicePixelRatio: 4, origin: 'https://appassets.androidplatform.net' };
+  const report = Core.buildReport(env, {});
+  assert.doesNotMatch(report, /:\/\/|www\.|androidplatform|com\.amazon/);
+  const j = JSON.parse(report);
+  assert.equal(j.o, 'appassets');
+  assert.equal(j.dev.w, '148.amazon-webview-v148-7778-tv.7778.258.6');
+  assert.equal(Core.buildReport({ ...env, origin: 'null' }, {}).includes('"o":"file"'), true);
 });

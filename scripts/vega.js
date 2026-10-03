@@ -52,6 +52,7 @@ function syncPages() {
   const dest = path.join(VEGA, 'assets');
   fs.rmSync(dest, { recursive: true, force: true });
   fs.cpSync(PAGES, dest, { recursive: true });
+  fs.cpSync(path.join(VEGA, 'image'), path.join(dest, 'image'), { recursive: true }); // app icon (docs/logo.svg)
 }
 
 function writeBuildFiles(b) {

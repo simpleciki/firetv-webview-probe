@@ -1,3 +1,5 @@
+<img src="docs/logo.svg" alt="" width="96" align="right">
+
 # Fire TV WebView Probe
 
 **Install it on a Fire TV, follow the prompts for three minutes, and see what that device actually delivers to a web page inside a WebView app:** which remote keys reach the page, how Alexa's playback commands arrive, and which ordinary video styles leave a playing video invisible. The report leaves the TV as a QR code.

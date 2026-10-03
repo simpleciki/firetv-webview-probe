@@ -8,6 +8,9 @@ schema-version = 1
 title = "{{TITLE}}"
 version = "0.1.0"
 id = "{{ID}}"
+# 512x512 PNG under assets/image (copied from vega/image by scripts/vega.js). Without it the app has
+# no icon on the Vega home screen, and the manifest validator does not warn (4K Select, 2026-10-03).
+icon = "@image/icon.png"
 
 [os.version]
 min = "1.2"

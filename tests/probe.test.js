@@ -275,3 +275,13 @@ test('a seek of the page video is measured from where it was when the seek began
   assert.match(pm, /v\.currentTime - from/);
   assert.doesNotMatch(pm, /v\.currentTime - lastT/);
 });
+
+test('both shells carry the same logo, and the Vega manifest points at it', () => {
+  assert.ok(fs.existsSync(path.join(ROOT, 'docs', 'logo.svg')));
+  for (const p of [['app', 'src', 'main', 'res', 'drawable-nodpi', 'icon.png'], ['vega', 'image', 'icon.png']]) {
+    const b = fs.readFileSync(path.join(ROOT, ...p));
+    assert.equal(b.readUInt32BE(16), 512, p.join('/') + ' is 512 px wide'); assert.equal(b.readUInt32BE(20), 512);
+  }
+  assert.match(read('vega', 'manifest.template.toml'), /^icon = "@image\/icon\.png"$/m);
+  assert.match(read('scripts', 'vega.js'), /path\.join\(VEGA, 'image'\)/);
+});

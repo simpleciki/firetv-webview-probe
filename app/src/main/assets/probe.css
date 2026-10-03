@@ -31,6 +31,9 @@ th { color: var(--dim); font-weight: 500; }
 .qr { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 1vh; }
 .qr svg { width: 30vh; height: 30vh; background: #fff; }
 
+/* Voice steps on a shell where the page's own video is the media (Vega OS). */
+.voice-video { width: 24vw; height: 13.5vw; background: #000; }
+
 /* Video steps. The variants are the point of the test: do not "fix" them. */
 .stage { display: flex; gap: 3vw; align-items: center; }
 .stage video { width: 40vw; height: 22.5vw; background: #000; }

@@ -2,13 +2,12 @@
 // results table and a QR code of the report. All judgement lives in probe-core.js.
 (function () {
   'use strict';
-  const { STEPS, summariseKeys, summariseVoice, endsVoiceWait, describeVoice, summariseVideo, buildReport } = window.ProbeCore;
+  const { STEPS, summariseKeys, voiceToken, summariseVoice, voiceSettleMs, describeVoice, summariseVideo, buildReport } = window.ProbeCore;
   const RA = window.RemoteActions;
   const native = window.ProbeNative || null; // absent when the page is opened in a desktop browser
   const screen = document.getElementById('screen');
 
   const KEYS_SETTLE_MS = 1500;  // after the last expected key: wait for the same press through a second door
-  const VOICE_SETTLE_MS = 3000; // after the first thing arrives for a phrase: collect the rest
   const VIDEO_CHECK_MS = 2500;  // how long the video element is watched before asking the person
   // The press that opened a step (OK on the start screen, an answer on the previous step) can
   // still be arriving through its second door when the step begins. Nothing is recorded in the
@@ -28,6 +27,11 @@
   function readEnv() {
     let device = null;
     try { device = native ? JSON.parse(native.info()) : null; } catch (e) { device = null; }
+    // The Vega shell cannot see its WebView's version; the page can, in its own user agent.
+    if (device && device.shell === 'vega' && !device.webview) {
+      const m = /Chrome\/([\d.]+)/.exec(navigator.userAgent);
+      device.webview = m ? 'Chrome ' + m[1] : '';
+    }
     return { device, innerWidth, innerHeight, devicePixelRatio, origin: location.origin, userAgent: navigator.userAgent };
   }
 
@@ -38,7 +42,10 @@
 
   document.addEventListener('keydown', (e) => {
     const a = RA.fromDomKey(e);
-    if (a) { e.preventDefault(); if (onRaw) onRaw({ kind: 'dom', action: a.action }); }
+    // Back reaches the page only where the shell hands system keys to the web layer (Vega OS);
+    // there, as on Fire OS, it means "skip this step".
+    if (a) { e.preventDefault(); if (onRaw) onRaw(a.action === 'back' ? { kind: 'back' } : { kind: 'dom', action: a.action }); }
+    else if (onRaw) onRaw({ kind: 'domOther', key: (e.key || '') + '/' + e.keyCode });
     nav.handleDom(e);
   });
   window.addEventListener('probe-native', (ev) => {
@@ -60,7 +67,15 @@
   function startScreen() {
     onRaw = null;
     const d = env.device;
-    const rows = d ? [
+    const rows = d && d.shell === 'vega' ? [
+      ['Device', `${d.manufacturer || ''} ${d.model || ''}`.trim() ||
+        (d.constants ? 'not reported; the app layer offers: ' + Object.keys(d.constants).join(', ') : 'unknown')],
+      ['System', d.os || 'Vega OS'],
+      ['WebView', d.webview || 'unknown'],
+      ['Display', displayText(d)],
+      ['Page origin', env.origin],
+      ['Media declaration', d.mediaControl ? 'this build’s manifest declares the media-control block from Amazon’s WebView guide' : 'this build’s manifest is the WebView template’s, with no media declaration'],
+    ] : d ? [
       ['Device', `${d.manufacturer} ${d.model} (${d.device})`],
       ['System', `${d.fireOs || 'Android ' + d.android} · API ${d.sdk}`],
       ['WebView', d.webview || 'unknown'],
@@ -124,20 +139,55 @@
     });
   }
 
+  // Where the shell has no media session of its own (Vega OS), the media Alexa can act on is the
+  // page's own <video>, so the voice steps play one (with a silent audio track) in the stated
+  // state. Its play / pause / seeked events count only once the page's own play() or pause()
+  // has landed, so what is recorded is what the system did to it.
+  function pageMedia(state, record) {
+    const v = el('video', 'voice-video');
+    v.src = 'voice-clip.mp4'; v.playsInline = true; // not looped: a loop fires its own 'seeked'
+    let armed = false, lastT = 0, seekFrom = null, off = false;
+    const arm = () => setTimeout(() => { if (!off) armed = true; }, 300);
+    // The seek's starting point is taken when 'seeking' fires: a seek's own 'timeupdate' (already at
+    // the new position, with seeking false) arrives before 'seeked' (4K Select, 2026-10-03: every seek read as 0).
+    v.addEventListener('timeupdate', () => { if (!v.seeking && seekFrom === null) lastT = v.currentTime; });
+    v.addEventListener('seeking', () => { if (seekFrom === null) seekFrom = lastT; });
+    for (const ev of ['play', 'pause', 'seeked']) {
+      v.addEventListener(ev, () => {
+        const from = seekFrom;
+        if (ev === 'seeked') { seekFrom = null; lastT = v.currentTime; }
+        if (off || !armed) return;
+        record(ev === 'seeked' ? { kind: 'video', event: ev, delta: from === null ? undefined : v.currentTime - from } : { kind: 'video', event: ev });
+      });
+    }
+    v.addEventListener('playing', () => {
+      if (state === 'paused' && !armed) { v.addEventListener('pause', arm, { once: true }); v.pause(); }
+      else if (!armed) arm();
+    }, { once: true });
+    v.play().catch(() => {});
+    return { node: v, stop() { off = true; v.pause(); v.removeAttribute('src'); v.load(); } };
+  }
+
   function voiceStep(s, header) {
     return new Promise((resolve) => {
       if (native) native.setPlaying(s.state === 'playing');
       const obs = [];
       const log = el('div', 'log');
+      const media = env.device && env.device.pageMedia ? pageMedia(s.state, (o) => onRaw && onRaw(o)) : null;
       show(...header,
-        el('p', 'dim', `The app now tells Fire TV it is ${s.state === 'playing' ? 'playing' : 'paused'}.`),
+        el('p', 'dim', media
+          ? `The video below is ${s.state === 'playing' ? 'playing' : 'paused'}.`
+          : `The app now tells Fire TV it is ${s.state === 'playing' ? 'playing' : 'paused'}.`),
+        ...(media ? [media.node] : []),
         el('p', 'prompt', `Say “${s.phrase}”`),
         log, hint('Hold the remote’s microphone button, or speak to a paired Echo. Back to skip.'));
       let settle = null;
+      const times = [];
       const started = performance.now();
       const done = setTimeout(finish, s.timeoutMs);
       function finish(skipped) {
         clearTimeout(done); clearTimeout(settle); onRaw = null;
+        if (media) media.stop();
         const r = summariseVoice(obs); if (skipped === true) r.push('skipped'); resolve(r);
       }
       onNav = null;
@@ -147,9 +197,13 @@
         if (o.kind === 'key' && o.code === 4) return;
         if (performance.now() - started < STEP_GUARD_MS) return;
         obs.push(o);
+        // Seconds since the prompt, on screen only: tells a press of the microphone button apart from the answer.
+        const tok = voiceToken(o);
+        if (tok) times.push(`+${((performance.now() - started) / 1000).toFixed(1)}s ${tok}`);
         const tokens = summariseVoice(obs);
-        log.textContent = tokens.join('  ') + '\n' + describeVoice(tokens);
-        if (!settle && endsVoiceWait(o)) settle = setTimeout(finish, VOICE_SETTLE_MS);
+        log.textContent = times.join('  ') + '\n' + describeVoice(tokens);
+        const ms = voiceSettleMs(o);
+        if (ms != null) { clearTimeout(settle); settle = setTimeout(finish, ms); }
       };
     });
   }

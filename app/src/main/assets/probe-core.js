@@ -48,8 +48,18 @@
   //   s:<cb>      media-session callback (onSeekTo carries its delta in seconds: s:seek-10)
   //   d:<action>  DOM keydown in the page
   //   L:pause / L:resume  the activity was paused / resumed (e.g. by the voice overlay)
+  //   t:<type>    Vega OS: the app shell's React Native TV event (t:playpause)
+  //   d?<key>     DOM keydown with a key this probe has no name for (its raw `key`)
+  //   v:<event>   the page's own <video> was paused / played / seeked by the system, not by the page
+  //               (v:seek-10 = seeked 10 s back)
   function voiceToken(o) {
     if (o.kind === 'key') return 'k' + o.code + (o.deviceId === -1 ? 'v' : '');
+    if (o.kind === 'tv') return o.keyAction == null || o.keyAction === 0 ? 't:' + o.type : null;
+    if (o.kind === 'domOther') return 'd?' + o.key;
+    if (o.kind === 'video') {
+      if (o.event === 'seeked') return typeof o.delta === 'number' ? 'v:seek' + (o.delta > 0 ? '+' : '') + Math.round(o.delta) : 'v:seek';
+      return 'v:' + o.event;
+    }
     if (o.kind === 'mediaButton') return 'm' + o.code;
     if (o.kind === 'session') {
       if (o.callback === 'onSeekTo') {
@@ -73,6 +83,16 @@
     const t = voiceToken(o);
     return !!t && !t.startsWith('L:');
   }
+  // How long to keep listening after this observation (each new one restarts the wait), or null
+  // if it does not count as an answer. On Vega OS, holding the microphone button pauses the page's
+  // own video before a word is said (4K Select, 2026-10-03: "rewind" and "fast forward" both ended
+  // on that pause, before Alexa answered), so a pause alone waits long enough for the answer.
+  const VOICE_SETTLE_MS = 3000;
+  const VOICE_AFTER_VIDEO_PAUSE_MS = 10000;
+  function voiceSettleMs(o) {
+    if (!endsVoiceWait(o)) return null;
+    return o.kind === 'video' && o.event === 'pause' ? VOICE_AFTER_VIDEO_PAUSE_MS : VOICE_SETTLE_MS;
+  }
 
   // What a voice result means, in words, for the on-screen table. Only says what the tokens show.
   function describeVoice(tokens) {
@@ -84,8 +104,10 @@
     if (tokens.some((t) => t.startsWith('s:'))) parts.push('media-session callback');
     if (tokens.some((t) => /^k\d+v$/.test(t))) parts.push('key event from a virtual device');
     else if (tokens.some((t) => /^k\d+$/.test(t))) parts.push('key event');
+    if (tokens.some((t) => t.startsWith('t:'))) parts.push('app shell TV event');
     if (tokens.some((t) => t.startsWith('m'))) parts.push('media-button intent');
-    if (tokens.some((t) => t.startsWith('d:'))) parts.push('DOM keydown');
+    if (tokens.some((t) => t.startsWith('d:') || t.startsWith('d?'))) parts.push('DOM keydown');
+    if (tokens.some((t) => t.startsWith('v:'))) parts.push('the system acting on the page’s video directly');
     let s = 'Arrived as: ' + parts.join(' + ') + '.';
     if (tokens.includes('L:pause')) s += ' The app was paused while you spoke.';
     if (skipped) s += ' (Skipped.)';
@@ -110,23 +132,26 @@
     return 'other';
   }
   function webviewVersion(w) { return (w || '').replace(/^\S+\s+/, ''); }
+  function deviceForReport(d) {
+    if (!d) return null;
+    // Vega OS shell: no Android fields; `mc` = whether this build's manifest declares the media-control block.
+    if (d.shell === 'vega') return { sh: 'vega', m: d.model, f: d.os, w: webviewVersion(d.webview), px: d.displayPx, mc: d.mediaControl };
+    return { m: d.model, f: d.fireOs, a: d.android, s: d.sdk, w: webviewVersion(d.webview), px: d.displayPx, vp: d.voicePermission };
+  }
   function buildReport(env, results) {
     const r = {};
     for (const s of STEPS) if (results[s.id] !== undefined) r[s.id] = results[s.id];
     return JSON.stringify({
       v: 1,
       p: 'firetv-webview-probe',
-      dev: env.device ? {
-        m: env.device.model, f: env.device.fireOs, a: env.device.android, s: env.device.sdk,
-        w: webviewVersion(env.device.webview), px: env.device.displayPx, vp: env.device.voicePermission,
-      } : null,
+      dev: deviceForReport(env.device),
       view: { w: env.innerWidth, h: env.innerHeight, dpr: env.devicePixelRatio },
       o: originCode(env.origin),
       r,
     });
   }
 
-  const api = { STEPS, DOOR, summariseKeys, voiceToken, summariseVoice, endsVoiceWait, describeVoice, summariseVideo, buildReport };
+  const api = { STEPS, DOOR, summariseKeys, voiceToken, summariseVoice, endsVoiceWait, voiceSettleMs, describeVoice, summariseVideo, buildReport };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ProbeCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

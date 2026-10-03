@@ -5,6 +5,7 @@
 // the OS version and what your app declares:
 //   1. DOM keydown in the page        ({ key: 'MediaPlayPause' })
 //   2. the activity's key events      ({ kind: 'key', code: 85, deviceId: -1 })   forwarded by your shell
+//      (on Vega OS: the React Native TV event, { kind: 'tv', type: 'playpause', keyAction: 0 })
 //   3. media-session callbacks        ({ kind: 'session', callback: 'onPause' }) forwarded by your shell
 // This module names the action the same way whichever door it came through, keeps the door
 // (`source`) so you can tell them apart, and drops the duplicate when one press comes through
@@ -31,6 +32,15 @@
     4: 'back', 82: 'menu',
     85: 'playPause', 126: 'play', 127: 'pause', 86: 'stop',
     89: 'rewind', 90: 'fastForward', 87: 'next', 88: 'previous',
+  };
+
+  // Vega OS: `eventType` of the React Native TV event handler (useTVEventHandler) in the app shell.
+  const TV_EVENTS = {
+    up: 'up', down: 'down', left: 'left', right: 'right', select: 'select', enter: 'select',
+    back: 'back', menu: 'menu', context_menu: 'menu',
+    playpause: 'playPause', pause: 'pause', stop: 'stop',
+    rewind: 'rewind', forward: 'fastForward',
+    skip_backward: 'previous', skip_forward: 'next',
   };
 
   const SESSION_CALLBACKS = {
@@ -61,6 +71,12 @@
       return { action, source: d.kind === 'key' ? 'key' : 'mediaButton', code: d.code, virtual: d.deviceId === -1 };
     }
     if (d.kind === 'back') return { action: 'back', source: 'key', code: 4, virtual: false };
+    // Vega OS shell: { kind: 'tv', type: 'playpause', keyAction: 0 }. Only the press (0), not the release.
+    if (d.kind === 'tv') {
+      const action = TV_EVENTS[d.type];
+      if (!action || (d.keyAction != null && d.keyAction !== 0)) return null;
+      return { action, source: 'key', type: d.type };
+    }
     if (d.kind === 'session') {
       if (d.callback === 'onSeekTo') {
         if (d.pos === 0) return { action: 'restart', source: 'session' };
@@ -97,7 +113,7 @@
     };
   }
 
-  const api = { fromDomKey, fromNative, create, DOM_KEYS, KEY_CODES, SESSION_CALLBACKS };
+  const api = { fromDomKey, fromNative, create, DOM_KEYS, KEY_CODES, TV_EVENTS, SESSION_CALLBACKS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RemoteActions = api;
 })(typeof window !== 'undefined' ? window : globalThis);

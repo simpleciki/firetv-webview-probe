@@ -6,6 +6,7 @@
   "license": "MIT",
   "scripts": {
     "test": "node --test tests/probe.test.js",
-    "tv": "node scripts/tv.js"
+    "tv": "node scripts/tv.js",
+    "vega": "node scripts/vega.js"
   }
 }

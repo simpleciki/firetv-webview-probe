@@ -1,0 +1,52 @@
+schema-version = 1
+
+# scripts/vega.js fills in the double-braced fields once per build: the package id (the two
+# builds install side by side), the home-screen title, the component categories, and, for the
+# "media" build only, the media-control declaration from Amazon's WebView guide (MEDIA_BLOCK).
+
+[package]
+title = "{{TITLE}}"
+version = "0.1.0"
+id = "{{ID}}"
+
+[os.version]
+min = "1.2"
+target = "1.2"
+
+[needs]
+[[needs.module]]
+id = "/com.amazon.vega.os@IVega_1_2"
+
+[components]
+[[components.interactive]]
+id = "{{ID}}.main"
+runtime-module = "/com.amazon.kepler.runtime.react_native_kepler_4@IReactNativeKepler_0"
+launch-type = "singleton"
+categories = [{{CATEGORIES}}]
+
+[wants]
+# Everything below is the Vega WebView template's own list, unchanged.
+[[wants.service]]
+id = "com.amazon.webview.renderer_service"
+[[wants.service]]
+id = "com.amazon.inputmethod.service"
+[[wants.service]]
+id = "com.amazon.media.server"
+[[wants.service]]
+id = "com.amazon.mediametrics.service"
+[[wants.service]]
+id = "com.amazon.mediabuffer.service"
+[[wants.service]]
+id = "com.amazon.mediatransform.service"
+[[wants.service]]
+id = "com.amazon.audio.stream"
+[[wants.service]]
+id = "com.amazon.audio.control"
+[[wants.service]]
+id = "com.amazon.kepler.ucc.publisher"
+[[wants.service]]
+id = "com.amazon.gipc.uuid.*"
+[offers]
+[[offers.service]]
+id = "com.amazon.gipc.uuid.*"
+{{MEDIA}}

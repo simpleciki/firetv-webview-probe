@@ -184,8 +184,17 @@ test('a voice step waits through the overlay: lifecycle alone never ends it, Ale
   for (const s of Core.STEPS.filter((x) => x.kind === 'voice')) assert.ok(s.timeoutMs >= 30000, s.id + ' leaves time to speak');
 });
 
-test('the voice step only starts its wrap-up timer on Alexa evidence', () => {
-  assert.match(read('app', 'src', 'main', 'assets', 'probe-ui.js'), /if \(!settle && endsVoiceWait\(o\)\) settle = setTimeout\(finish, VOICE_SETTLE_MS\)/);
+test('the voice step only starts its wrap-up timer on Alexa evidence, and restarts it on each new piece', () => {
+  assert.match(read('app', 'src', 'main', 'assets', 'probe-ui.js'),
+    /const ms = voiceSettleMs\(o\);\s*if \(ms != null\) \{ clearTimeout\(settle\); settle = setTimeout\(finish, ms\); \}/);
+  assert.equal(Core.voiceSettleMs({ kind: 'lifecycle', event: 'onPause' }), null);
+  assert.equal(Core.voiceSettleMs({ kind: 'key', code: 85, deviceId: -1 }), 3000);
+});
+
+test('on Vega a pause of the page video alone waits for the answer: the microphone button pauses it first', () => {
+  assert.equal(Core.voiceSettleMs({ kind: 'video', event: 'pause' }), 10000);
+  assert.equal(Core.voiceSettleMs({ kind: 'video', event: 'play' }), 3000);
+  assert.equal(Core.voiceSettleMs({ kind: 'video', event: 'seeked', delta: -10 }), 3000);
 });
 
 test('a voice step that only saw the overlay says so in words, not "Arrived as: ."', () => {
@@ -212,4 +221,57 @@ test('the QR report holds nothing a phone camera would open as a link', () => {
   assert.equal(j.o, 'appassets');
   assert.equal(j.dev.w, '148.amazon-webview-v148-7778-tv.7778.258.6');
   assert.equal(Core.buildReport({ ...env, origin: 'null' }, {}).includes('"o":"file"'), true);
+});
+
+// ---------- Vega OS shell ----------
+
+test('Vega TV events get the same action names; only the press counts, not the release', () => {
+  assert.deepEqual(RA.fromNative({ kind: 'tv', type: 'playpause', keyAction: 0 }), { action: 'playPause', source: 'key', type: 'playpause' });
+  assert.equal(RA.fromNative({ kind: 'tv', type: 'forward', keyAction: 0 }).action, 'fastForward');
+  assert.equal(RA.fromNative({ kind: 'tv', type: 'playpause', keyAction: 1 }), null, 'key up is not a second press');
+  assert.equal(RA.fromNative({ kind: 'tv', type: 'num_5', keyAction: 0 }), null);
+});
+
+test('Vega voice tokens: shell TV event, unnamed DOM key, and the system acting on the page video', () => {
+  const tokens = Core.summariseVoice([
+    { kind: 'tv', type: 'playpause', keyAction: 0 }, { kind: 'tv', type: 'playpause', keyAction: 1 },
+    { kind: 'domOther', key: 'Unidentified/179' },
+    { kind: 'video', event: 'pause' }, { kind: 'video', event: 'seeked', delta: -10.2 },
+  ]);
+  assert.deepEqual(tokens, ['t:playpause', 'd?Unidentified/179', 'v:pause', 'v:seek-10']);
+  const words = Core.describeVoice(tokens);
+  assert.match(words, /app shell TV event/); assert.match(words, /DOM keydown/); assert.match(words, /page’s video directly/);
+  assert.ok(Core.endsVoiceWait({ kind: 'video', event: 'pause' }), 'the system pausing the video is Alexa evidence');
+});
+
+test('a Vega report says which shell and which manifest it came from, with no Android fields', () => {
+  const env = { device: { shell: 'vega', model: 'AFTCA', os: 'Vega OS 1.2', webview: 'Chrome 132.0.0.0', displayPx: '1920x1080', mediaControl: true },
+    innerWidth: 960, innerHeight: 540, devicePixelRatio: 2, origin: 'null' };
+  const r = JSON.parse(Core.buildReport(env, {}));
+  assert.deepEqual(r.dev, { sh: 'vega', m: 'AFTCA', f: 'Vega OS 1.2', w: '132.0.0.0', px: '1920x1080', mc: true });
+  assert.equal(r.o, 'file');
+});
+
+test('the two Vega builds differ only in the media-control declaration', () => {
+  const src = read('scripts', 'vega.js');
+  assert.match(src, /mediaControl: true/); assert.match(src, /mediaControl: false/);
+  assert.match(src, /IMediaPlaybackServer/);
+  const app = read('vega', 'src', 'App.tsx');
+  assert.match(app, /allowsDefaultMediaControl\b/, 'both builds leave the WebView media control at its default (on)');
+  assert.doesNotMatch(app, /allowsDefaultMediaControl=\{false\}/);
+});
+
+test('voice steps on Vega use a clip with an audio track that never loops', () => {
+  const ui = read('app', 'src', 'main', 'assets', 'probe-ui.js');
+  assert.match(ui, /v\.src = 'voice-clip\.mp4'/);
+  assert.doesNotMatch(ui.slice(ui.indexOf('function pageMedia'), ui.indexOf('function voiceStep')), /loop = true/);
+  assert.ok(fs.existsSync(path.join(ASSETS, 'voice-clip.mp4')));
+});
+
+test('a seek of the page video is measured from where it was when the seek began, not from its own timeupdate', () => {
+  const ui = read('app', 'src', 'main', 'assets', 'probe-ui.js');
+  const pm = ui.slice(ui.indexOf('function pageMedia'), ui.indexOf('function voiceStep'));
+  assert.match(pm, /addEventListener\('seeking', \(\) => \{ if \(seekFrom === null\) seekFrom = lastT; \}\)/);
+  assert.match(pm, /v\.currentTime - from/);
+  assert.doesNotMatch(pm, /v\.currentTime - lastT/);
 });

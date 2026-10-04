@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- This page may load its own two scripts and its own logo, and nothing else. It cannot make a
+       network request of its own: connect-src is 'none'. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Fire TV WebView Probe — report</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #f6f7f9; --fg: #14171c; --dim: #5b6470; --line: #d9dde3; --card: #fff; --accent: #0b6bcb; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #12161c; --fg: #e8ebef; --dim: #9aa4b1; --line: #2a313b; --card: #1a2028; --accent: #6db3ff; } }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; }
+    header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    header img { width: 44px; height: 44px; }
+    h1 { font-size: 20px; margin: 0; }
+    h2 { font-size: 18px; margin: 24px 0 8px; }
+    p { color: var(--dim); margin: 8px 0; }
+    .note { border-left: 3px solid var(--accent); padding: 2px 12px; }
+    table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 8px; margin: 12px 0; overflow: hidden; }
+    th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-top: 1px solid var(--line); font-size: 14px; overflow-wrap: anywhere; }
+    tr:first-child th, tr:first-child td { border-top: 0; }
+    th { width: 38%; color: var(--dim); font-weight: 600; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 4px; }
+    button, a.button { font: inherit; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); text-decoration: none; cursor: pointer; }
+    a.button { border-color: var(--accent); color: var(--accent); }
+    a { color: var(--accent); }
+    textarea { width: 100%; min-height: 120px; box-sizing: border-box; font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <img src="logo.svg" alt="">
+      <h1>Fire TV WebView Probe</h1>
+    </header>
+    <p class="note">This report came here inside the link you scanned, in the part after <code>#</code>. Browsers never send that part to a server, and this page makes no network requests of its own. The report leaves your phone only if you share it.</p>
+    <section id="intro" hidden>
+      <h2>No report in this link</h2>
+      <p>This page shows the report from a <a href="https://github.com/simpleciki/firetv-webview-probe">Fire TV WebView Probe</a> run. Install the probe on a Fire TV (Fire OS or Vega OS), follow the prompts for about three minutes, then scan the QR code on its last screen with your phone.</p>
+    </section>
+    <section id="report"></section>
+    <textarea id="fallback" hidden readonly aria-label="Report text"></textarea>
+  </main>
+  <script src="probe-core.js"></script>
+  <script src="report.js"></script>
+</body>
+</html>

@@ -90,8 +90,10 @@ test('a worst-case report still fits a QR code a phone can read off the TV', () 
   }
   const report = Core.buildReport(env, results);
   assert.ok(report.length < 1500, `report is ${report.length} bytes`);
-  const q = qrcode(0, 'L'); q.addData(report, 'Byte'); q.make();
-  assert.ok(q.getModuleCount() <= 117, `QR has ${q.getModuleCount()} modules (version ≤ 25 stays readable from a sofa)`);
+  const link = Core.reportLink(report);   // what the QR code actually carries
+  const q = qrcode(0, 'L'); q.addData(link, 'Byte'); q.make();
+  assert.ok(q.getModuleCount() <= 125, `QR has ${q.getModuleCount()} modules for ${link.length} bytes (version ≤ 27 stays readable from a sofa)`);
+  assert.equal(Core.decodeFragment(link.split('#')[1]), report, 'the report read back from the link is the report that went in');
   assert.deepEqual(JSON.parse(report).r.dpad, results.dpad);
 });
 
@@ -154,7 +156,8 @@ test('the native shell offers seek, reports a fixed anchor, and never turns its 
 test('the probe sends nothing anywhere', () => {
   assert.ok(!read('app', 'src', 'main', 'AndroidManifest.xml').includes('android.permission.INTERNET'));
   for (const f of fs.readdirSync(ASSETS).filter((f) => /\.(js|html|css)$/.test(f))) {
-    const src = read('app', 'src', 'main', 'assets', f);
+    // The one address the app knows is its report page, and it only ever draws it into a QR code.
+    const src = read('app', 'src', 'main', 'assets', f).replace(`const REPORT_PAGE = '${Core.REPORT_PAGE}';`, '');
     assert.doesNotMatch(src, /\bfetch\(|XMLHttpRequest|WebSocket|sendBeacon|https?:\/\//, `${f} makes no network call and links nowhere`);
   }
 });
@@ -211,7 +214,7 @@ test('every Back handler waits until the screen has settled, so one press skips 
   for (const site of backSites) assert.match(site, /settled\(\)/, 'unguarded Back: ' + site);
 });
 
-test('the QR report holds nothing a phone camera would open as a link', () => {
+test('the report itself holds nothing a phone camera would open as a link; the QR code holds exactly one, to the report page', () => {
   const env = { device: { model: 'AFTMA08C15', fireOs: 'Fire OS 8.1.8.2 (RS8182/3811)', android: '11', sdk: 30,
     webview: 'com.amazon.webview.chromium 148.amazon-webview-v148-7778-tv.7778.258.6', displayPx: '1920x1080', voicePermission: true },
     innerWidth: 960, innerHeight: 540, devicePixelRatio: 4, origin: 'https://appassets.androidplatform.net' };
@@ -221,6 +224,73 @@ test('the QR report holds nothing a phone camera would open as a link', () => {
   assert.equal(j.o, 'appassets');
   assert.equal(j.dev.w, '148.amazon-webview-v148-7778-tv.7778.258.6');
   assert.equal(Core.buildReport({ ...env, origin: 'null' }, {}).includes('"o":"file"'), true);
+  const link = Core.reportLink(report);
+  assert.equal(link.match(/https?:/g).length, 1);
+  assert.ok(link.startsWith(Core.REPORT_PAGE + '#'), 'the report rides after the #, the part a browser never sends');
+  assert.match(read('app', 'src', 'main', 'assets', 'probe-ui.js'), /q\.addData\(reportLink\(report\), 'Byte'\)/);
+});
+
+// ---------- report link and report page ----------
+
+test('any report survives the trip through a link, whatever characters a device reports', () => {
+  const odd = JSON.stringify({ v: 1, p: 'firetv-webview-probe', dev: { m: "AFT (x)_y 'z' !* ~7E ~", f: 'Fire OS 8.1.8.2 (RS8182/3811)', w: '100% ü 电视 #?&=+' },
+    r: { voicePlay: ['k85v', 'd:playPause', 's:seek+10', 'v:seek-10', 'd?Unidentified/179'], videoPlain: 'y p1 a2.3 r4' } });
+  const fragment = Core.encodeFragment(odd);
+  assert.match(fragment, /^[A-Za-z0-9\-._~:,\/'()!*%]+$/, 'only characters that are legal in a URL fragment');
+  assert.equal(Core.decodeFragment(fragment), odd);
+  assert.equal(Core.decodeFragment('#' + fragment), odd, 'location.hash arrives with its #');
+  const mangled = fragment.replace(/'/g, '%27').replace(/\(/g, '%28').replace(/!/g, '%21').replace(/_/g, '%5F');
+  assert.equal(Core.decodeFragment(mangled), odd, 'a browser that percent-encodes the link on the way changes nothing');
+  assert.deepEqual(Core.parseReport('#' + fragment), JSON.parse(odd));
+});
+
+test('a link that is not a probe report is refused, not shown as one', () => {
+  for (const bad of ['', '#', '#hello', '#' + Core.encodeFragment('{"v":1,"p":"something-else","r":{}}'),
+    '#' + Core.encodeFragment('{"v":2,"p":"firetv-webview-probe","r":{}}'), '#%E0%A4%A', '#' + Core.encodeFragment('[1,2]')]) {
+    assert.equal(Core.parseReport(bad), null, JSON.stringify(bad));
+  }
+});
+
+test('the report page reads reports with the same code as the app: docs/probe-core.js is a byte-for-byte copy', () => {
+  assert.equal(read('docs', 'probe-core.js'), read('app', 'src', 'main', 'assets', 'probe-core.js'), 'run `npm run page`');
+});
+
+test('the report page cannot send a report anywhere, and never treats one as HTML', () => {
+  const html = read('docs', 'index.html'), js = read('docs', 'report.js');
+  assert.match(html, /Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self'; connect-src 'none'/);
+  const srcs = [...html.matchAll(/<(?:script|img|link)[^>]*(?:src|href)="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(srcs.sort(), ['logo.svg', 'probe-core.js', 'report.js'], 'only its own files');
+  assert.doesNotMatch(js, /fetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|new Image|innerHTML|insertAdjacentHTML|document\.write|eval\(/);
+  assert.doesNotMatch(html, /<script(?![^>]*src=)/, 'no inline script');
+  assert.equal(new URL(Core.REPORT_PAGE).hostname, 'simpleciki.github.io');
+});
+
+test('the report page says what the TV said, and turns a report into a row for the device table', () => {
+  const Page = require(path.join(ROOT, 'docs', 'report.js'));
+  const env = { device: { model: 'AFTMA08C15', fireOs: 'Fire OS 8.1.8.2 (RS8182/3811)', android: '11', sdk: 30,
+    webview: 'com.amazon.webview.chromium 148.0', displayPx: '1920x1080', voicePermission: true },
+    innerWidth: 960, innerHeight: 540, devicePixelRatio: 4, origin: 'https://appassets.androidplatform.net' };
+  const results = { dpad: { up: 'dk', down: 'dk', left: 'dk', right: 'dk', select: 'd' }, menu: { menu: '', skipped: true },
+    voicePausePlaying: ['k85v', 'd:playPause'], voicePausePaused: [], videoRounded: 'n p1 a2.2 r4', videoHeldFade: 'y p1 a2.2 r4' };
+  const report = Core.parseReport('#' + Core.reportLink(Core.buildReport(env, results)).split('#')[1]);
+  const facts = Object.fromEntries(Page.deviceFacts(report));
+  assert.equal(facts.Device, 'AFTMA08C15');
+  assert.equal(facts.Display, '1920x1080 px · the page sees 960×540 CSS px · devicePixelRatio 4');
+  assert.equal(facts['Voice permission'], 'declared in this build');
+  const lines = Object.fromEntries(Page.stepLines(report));
+  assert.equal(lines['Voice: pause (already paused)'], Core.describeVoice([]), 'same words as the TV');
+  assert.equal(lines['Menu button'], 'menu: not received (skipped)');
+  assert.ok(!('Media buttons' in lines), 'a step that was never run is not listed');
+  assert.equal(lines['Video: rounded corners'], 'The person did NOT see it. The video element reported: playing, clock advanced 2.2 s, readyState 4. (n p1 a2.2 r4)',
+    'the answer and what the element claimed, side by side: the element says "playing" either way');
+  assert.equal(Page.videoWords('-'), 'Skipped.');
+  const row = Page.markdownRow(report, '2026-10-04');
+  assert.equal(row.split(' | ').length, 11, 'one cell per column of the README table');
+  assert.match(row, /^\| AFTMA08C15 \| Fire OS 8\.1\.8\.2 \(RS8182\/3811\) · WebView 148\.0 \| 960×540, DPR 4 \| up `dk`, down `dk`, left `dk`, right `dk`, select `d` \| not measured \(step skipped\) \| not measured \(step skipped\) \|/);
+  assert.match(row, /pause \(while playing\): `k85v` `d:playPause`; pause \(already paused\): nothing \| — \| \*\*not visible\*\* \| visible \| 2026-10-04 \|$/);
+  const vega = { v: 1, p: 'firetv-webview-probe', dev: { sh: 'vega', f: 'Vega OS', w: '144.0', px: '1920x1080', mc: false }, view: { w: 1920, h: 1080, dpr: 1 }, o: 'file', r: { voicePlay: [] } };
+  assert.match(Page.markdownRow(vega, '2026-10-04'), /\| — \| play: nothing \| not measured \| not measured \| 2026-10-04 \|$/, 'a build without the declaration fills the "without" column');
+  assert.equal(Object.fromEntries(Page.deviceFacts(vega))['Media declaration'], 'not declared in this build');
 });
 
 // ---------- Vega OS shell ----------

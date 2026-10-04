@@ -30,6 +30,8 @@ th { color: var(--dim); font-weight: 500; }
 .results td, .results th { font-size: 1.3vw; }
 .qr { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 1vh; }
 .qr svg { width: 30vh; height: 30vh; background: #fff; }
+.qr p { margin: 0; text-align: center; max-width: 30vh; }
+.qr .small { font-size: 1.1vw; }
 
 /* Voice steps on a shell where the page's own video is the media (Vega OS). */
 .voice-video { width: 24vw; height: 13.5vw; background: #000; }

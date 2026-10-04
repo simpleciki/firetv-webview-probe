@@ -2,7 +2,7 @@
 // results table and a QR code of the report. All judgement lives in probe-core.js.
 (function () {
   'use strict';
-  const { STEPS, summariseKeys, voiceToken, summariseVoice, voiceSettleMs, describeVoice, summariseVideo, buildReport } = window.ProbeCore;
+  const { STEPS, summariseKeys, voiceToken, summariseVoice, voiceSettleMs, describeVoice, summariseVideo, buildReport, reportLink } = window.ProbeCore;
   const RA = window.RemoteActions;
   const native = window.ProbeNative || null; // absent when the page is opened in a desktop browser
   const screen = document.getElementById('screen');
@@ -257,10 +257,10 @@
     const tableBox = el('div', 'table'); tableBox.append(t);
     const qrBox = el('div', 'qr');
     try {
-      const q = window.qrcode(0, 'L'); q.addData(report, 'Byte'); q.make();
+      const q = window.qrcode(0, 'L'); q.addData(reportLink(report), 'Byte'); q.make();
       qrBox.innerHTML = q.createSvgTag({ cellSize: 4, margin: 4, scalable: true }); // generated SVG, no device text inside
     } catch (e) { qrBox.textContent = 'Report too large for a QR code.'; }
-    qrBox.append(el('p', 'dim', 'Scan to keep this report'));
+    qrBox.append(el('p', 'dim', 'Scan to open this report on your phone'), el('p', 'dim small', 'The report travels inside the link. Nothing is uploaded.'));
     const box = el('div', 'results'); box.append(tableBox, qrBox);
     show(el('h1', null, 'What this device delivered'),
       el('p', 'dim', 'Doors: d = DOM keydown · k = activity key event (v = virtual device) · m = media-button intent · s = media-session callback · L = app paused/resumed'),

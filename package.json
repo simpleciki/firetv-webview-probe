@@ -7,6 +7,7 @@
   "scripts": {
     "test": "node --test tests/probe.test.js",
     "tv": "node scripts/tv.js",
-    "vega": "node scripts/vega.js"
+    "vega": "node scripts/vega.js",
+    "page": "node scripts/page.js"
   }
 }

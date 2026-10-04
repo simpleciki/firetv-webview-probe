@@ -355,3 +355,12 @@ test('both shells carry the same logo, and the Vega manifest points at it', () =
   assert.match(read('vega', 'manifest.template.toml'), /^icon = "@image\/icon\.png"$/m);
   assert.match(read('scripts', 'vega.js'), /path\.join\(VEGA, 'image'\)/);
 });
+
+test('the README links to real reports, and each one opens as a report', () => {
+  const links = [...read('README.md').matchAll(/\]\(<(https:\/\/simpleciki\.github\.io\/firetv-webview-probe\/#[^>]+)>\)/g)].map((m) => m[1]);
+  assert.equal(links.length, 3);
+  const reports = links.map((l) => Core.parseReport('#' + l.split('#')[1]));
+  for (const r of reports) assert.ok(r && r.r && r.dev, 'a link in the README that the report page would refuse');
+  assert.deepEqual(reports.map((r) => r.dev.sh || 'fireos'), ['vega', 'fireos', 'fireos']);
+  assert.deepEqual(reports.map((r) => !!(r.dev.mc || r.dev.vp)), [true, true, false], 'with and without the voice declaration');
+});

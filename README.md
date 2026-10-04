@@ -68,11 +68,11 @@ Each result names the door it came through:
 
 Every cell comes from running this probe. An empty row means not measured yet, not "works".
 
-| Device | System · WebView | Viewport | D-pad + OK | ⏯ ⏪ ⏩ | Menu | Voice, with permission | Voice, without | Rounded video | Held fade | Measured |
+| Device | System · WebView | Viewport | D-pad + OK | ⏯ ⏪ ⏩ | Menu | Voice, with the declaration (Fire OS: permission · Vega: manifest media block) | Voice, without it | Rounded video | Held fade | Measured |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Android TV emulator (API 30) | Android 11 · Google WebView 90 | 960×540, DPR 2 | `dk` | `dk` | `k` only | no Alexa on the emulator | no Alexa | visible | visible | 2026-10-01 |
-| Fire TV Stick 4K Plus | | | | | | | | | | to be measured |
-| Fire TV Stick 4K Select (Vega OS) | | | | | | | | | | to be measured (Vega shell in progress) |
+| Fire TV Stick 4K Plus (`AFTMA08C15`) | Fire OS 8.1.8.2 · Amazon WebView 148 | 960×540, DPR 4 | not measured (step skipped) | not measured (step skipped) | not measured (step skipped) | pause while playing `k85v d`, pause when paused: nothing, play `k85v d`, rewind `k88v d`, fast forward `k87v d` — keys from a virtual device; no media-session callback | nothing reached the app | **not visible** | **not visible** | 2026-10-01 |
+| Fire TV Stick 4K Select (Vega OS) | Vega OS 1.2 · WebView Chrome 144 | 1920×1080, DPR 1 | arrows `dk`, OK `d` | ⏯ `d`, ⏪ ⏩ `dk` | `k` only | with the manifest media block: the system acts on the page's `<video>` — pause, pause when paused: nothing, play, rewind, fast forward (~10 s) | template manifest as generated: nothing (holding the mic button pauses the video, then it resumes) | visible | **not visible** | 2026-10-03 |
 
 Add your device: run the probe, scan the QR code, and open a pull request with a row built from the report.
 

@@ -138,12 +138,18 @@
     if (d.shell === 'vega') return { sh: 'vega', m: d.model, f: d.os, w: webviewVersion(d.webview), px: d.displayPx, mc: d.mediaControl };
     return { m: d.model, f: d.fireOs, a: d.android, s: d.sdk, w: webviewVersion(d.webview), px: d.displayPx, vp: d.voicePermission };
   }
+  // The device's own calendar day when the run finished (YYYY-MM-DD). Reports from earlier versions of
+  // the probe have no `t`; the report page then says so instead of putting the day it was opened in its place.
+  function localDay(date) {
+    return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+  }
   function buildReport(env, results) {
     const r = {};
     for (const s of STEPS) if (results[s.id] !== undefined) r[s.id] = results[s.id];
     return JSON.stringify({
       v: 1,
       p: 'firetv-webview-probe',
+      t: env.measuredOn,
       dev: deviceForReport(env.device),
       view: { w: env.innerWidth, h: env.innerHeight, dpr: env.devicePixelRatio },
       o: originCode(env.origin),
@@ -184,7 +190,7 @@
     } catch (e) { return null; }
   }
 
-  const api = { STEPS, DOOR, REPORT_PAGE, encodeFragment, decodeFragment, reportLink, parseReport, summariseKeys, voiceToken, summariseVoice, endsVoiceWait, voiceSettleMs, describeVoice, summariseVideo, buildReport };
+  const api = { STEPS, DOOR, REPORT_PAGE, encodeFragment, decodeFragment, reportLink, parseReport, summariseKeys, voiceToken, summariseVoice, endsVoiceWait, voiceSettleMs, describeVoice, summariseVideo, localDay, buildReport };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ProbeCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

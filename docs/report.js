@@ -20,8 +20,11 @@
       ['Display', (d.px || '?') + ' px · the page sees ' + v.w + '×' + v.h + ' CSS px · devicePixelRatio ' + v.dpr],
       ['Page origin', { appassets: 'https://appassets.androidplatform.net', file: 'file://', other: 'other' }[report.o] || 'unknown'],
       [vega ? 'Media declaration' : 'Voice permission', declared(d) ? 'declared in this build' : 'not declared in this build'],
+      ['Measured on', measuredOn(report) || 'not recorded in this report (made by an earlier version of the probe)'],
     ];
   }
+  // The day the TV ran the probe, from the report itself. Never the day this page was opened.
+  const measuredOn = (report) => (typeof report.t === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(report.t) ? report.t : null);
 
   // 'y p1 a2.3 r4' in words: what the person answered, kept apart from what the <video> element reported.
   function videoWords(v) {
@@ -50,13 +53,14 @@
   const voiceCell = (r) => Core.STEPS.filter((s) => s.kind === 'voice' && r[s.id] !== undefined)
     .map((s) => s.title.replace('Voice: ', '') + ': ' + (r[s.id].filter((t) => t !== 'skipped').map((t) => '`' + t + '`').join(' ') || 'nothing')).join('; ') || 'not measured';
 
-  // The report as one row of the README's "Measured devices" table.
+  // The report as one row of the README's "Measured devices" table. The last cell is the day the TV
+  // measured; a report without one says so, and gives the day it was read so nobody mistakes the two.
   function markdownRow(report, today) {
     const d = report.dev || {}, v = report.view || {}, r = report.r, voice = voiceCell(r);
     const cells = [
       d.m || 'Vega OS device', (d.f || '?') + ' · WebView ' + (d.w || '?'), v.w + '×' + v.h + ', DPR ' + v.dpr,
       keysCell(r.dpad, ['up', 'down', 'left', 'right', 'select']), keysCell(r.transport, ['playPause', 'rewind', 'fastForward']), keysCell(r.menu, ['menu']),
-      declared(d) ? voice : '—', declared(d) ? '—' : voice, seen(r.videoRounded), seen(r.videoHeldFade), today,
+      declared(d) ? voice : '—', declared(d) ? '—' : voice, seen(r.videoRounded), seen(r.videoHeldFade), measuredOn(report) || 'not recorded (report read ' + today + ')',
     ];
     return '| ' + cells.map((c) => String(c).replace(/\|/g, '\\|')).join(' | ') + ' |';
   }

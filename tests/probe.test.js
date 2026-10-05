@@ -80,7 +80,7 @@ test('video result keeps the person’s answer apart from what the element repor
 test('a worst-case report still fits a QR code a phone can read off the TV', () => {
   const env = { device: { model: 'AFTXXXXXXXXXX', fireOs: 'Fire OS 8.1.6.0 (PS8160/0000)', android: '11', sdk: 30,
     webview: 'com.amazon.webview.chromium 142.0.7444.000', displayPx: '1920x1080', voicePermission: true },
-    innerWidth: 960, innerHeight: 540, devicePixelRatio: 2, origin: 'https://appassets.androidplatform.net' };
+    innerWidth: 960, innerHeight: 540, devicePixelRatio: 2, origin: 'https://appassets.androidplatform.net', measuredOn: '2026-12-31' };
   const results = {};
   const noisy = ['L:pause', 'k85v', 'd:playPause', 'm85', 's:onPause', 's:seek-10', 'L:resume', 'k88v', 'd:previous'];
   for (const s of Core.STEPS) {
@@ -287,9 +287,16 @@ test('the report page says what the TV said, and turns a report into a row for t
   const row = Page.markdownRow(report, '2026-10-04');
   assert.equal(row.split(' | ').length, 11, 'one cell per column of the README table');
   assert.match(row, /^\| AFTMA08C15 \| Fire OS 8\.1\.8\.2 \(RS8182\/3811\) · WebView 148\.0 \| 960×540, DPR 4 \| up `dk`, down `dk`, left `dk`, right `dk`, select `d` \| not measured \(step skipped\) \| not measured \(step skipped\) \|/);
-  assert.match(row, /pause \(while playing\): `k85v` `d:playPause`; pause \(already paused\): nothing \| — \| \*\*not visible\*\* \| visible \| 2026-10-04 \|$/);
+  assert.match(row, /pause \(while playing\): `k85v` `d:playPause`; pause \(already paused\): nothing \| — \| \*\*not visible\*\* \| visible \| not recorded \(report read 2026-10-04\) \|$/,
+    'a report without a measuring day never gets the reading day in its place');
+  assert.equal(facts['Measured on'], 'not recorded in this report (made by an earlier version of the probe)');
+  const dated = Core.parseReport('#' + Core.reportLink(Core.buildReport({ ...env, measuredOn: Core.localDay(new Date(2026, 9, 3, 23, 59)) }, results)).split('#')[1]);
+  assert.equal(dated.t, '2026-10-03', 'the TV\'s own calendar day travels inside the link');
+  assert.match(Page.markdownRow(dated, '2026-11-20'), /\| 2026-10-03 \|$/, 'the row says when the TV measured, not when the page was opened');
+  assert.equal(Object.fromEntries(Page.deviceFacts(dated))['Measured on'], '2026-10-03');
+  assert.ok(Object.fromEntries(Page.deviceFacts({ ...dated, t: '<b>x</b>' }))['Measured on'].startsWith('not recorded'), 'only a plain date is shown');
   const vega = { v: 1, p: 'firetv-webview-probe', dev: { sh: 'vega', f: 'Vega OS', w: '144.0', px: '1920x1080', mc: false }, view: { w: 1920, h: 1080, dpr: 1 }, o: 'file', r: { voicePlay: [] } };
-  assert.match(Page.markdownRow(vega, '2026-10-04'), /\| — \| play: nothing \| not measured \| not measured \| 2026-10-04 \|$/, 'a build without the declaration fills the "without" column');
+  assert.match(Page.markdownRow({ ...vega, t: '2026-10-04' }, '2026-10-09'), /\| — \| play: nothing \| not measured \| not measured \| 2026-10-04 \|$/, 'a build without the declaration fills the "without" column');
   assert.equal(Object.fromEntries(Page.deviceFacts(vega))['Media declaration'], 'not declared in this build');
 });
 

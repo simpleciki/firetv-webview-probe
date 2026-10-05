@@ -2,7 +2,7 @@
 // results table and a QR code of the report. All judgement lives in probe-core.js.
 (function () {
   'use strict';
-  const { STEPS, summariseKeys, voiceToken, summariseVoice, voiceSettleMs, describeVoice, summariseVideo, buildReport, reportLink } = window.ProbeCore;
+  const { STEPS, summariseKeys, voiceToken, summariseVoice, voiceSettleMs, describeVoice, summariseVideo, localDay, buildReport, reportLink } = window.ProbeCore;
   const RA = window.RemoteActions;
   const native = window.ProbeNative || null; // absent when the page is opened in a desktop browser
   const screen = document.getElementById('screen');
@@ -243,7 +243,7 @@
   // ---- results ----
   function resultsScreen() {
     onRaw = null;
-    const report = buildReport(env, results);
+    const report = buildReport({ ...env, measuredOn: localDay(new Date()) }, results);
     console.log('[probe] report', report);
     const t = el('table');
     for (const s of STEPS) {
